@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { CORNER_META, type CornerId } from '../audio/morph';
 import { MAX_RECORD_SECONDS, type CornerSample } from '../audio/samples';
 import { Mic, Play, Square, Upload, X } from './Icons';
@@ -17,6 +17,14 @@ interface CornerSlotProps {
   onClear: (id: CornerId) => void;
 }
 
+function detectAppleMobile(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  // iPadOS 13+ reports MacIntel with touch points
+  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+}
+
 export const CornerSlot: React.FC<CornerSlotProps> = ({
   id,
   sample,
@@ -31,6 +39,8 @@ export const CornerSlot: React.FC<CornerSlotProps> = ({
   onClear,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const isAppleMobile = useMemo(() => detectAppleMobile(), []);
   const meta = CORNER_META[id];
   const activePct = Math.round(Math.max(0, Math.min(1, weight)) * 100);
 
@@ -42,10 +52,33 @@ export const CornerSlot: React.FC<CornerSlotProps> = ({
     e.target.value = '';
   };
 
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (isRecording) return;
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (isRecording) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      onUploadFile(id, file);
+    }
+  };
+
   return (
     <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       className={`relative bg-white border rounded-xl p-3 transition-colors duration-150 ${
-        isRecording
+        isRecording || isDragOver
           ? 'border-orange-600 ring-1 ring-orange-600/20'
           : sample
           ? 'border-zinc-200 hover:border-zinc-300'
@@ -184,7 +217,11 @@ export const CornerSlot: React.FC<CornerSlotProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept="audio/*"
+        accept={
+          isAppleMobile
+            ? undefined
+            : 'audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac,.aiff,.aif,.caf,.webm'
+        }
         onChange={handleFileChange}
         className="hidden"
       />

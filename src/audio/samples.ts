@@ -118,13 +118,46 @@ export function trimAndNormalize(ctx: AudioContext, input: AudioBuffer): AudioBu
   return output;
 }
 
+function decodeAudioBuffer(ctx: AudioContext, arrayBuffer: ArrayBuffer): Promise<AudioBuffer> {
+  return new Promise((resolve, reject) => {
+    const copy = arrayBuffer.slice(0);
+    let settled = false;
+    const onSuccess = (buf: AudioBuffer) => {
+      if (settled) return;
+      settled = true;
+      resolve(buf);
+    };
+    const onFail = (err: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(
+        err instanceof Error
+          ? err
+          : new Error('Unsupported or unreadable audio format.')
+      );
+    };
+
+    try {
+      const maybePromise = ctx.decodeAudioData(copy, onSuccess, onFail);
+      if (maybePromise && typeof maybePromise.then === 'function') {
+        maybePromise.then(onSuccess, onFail);
+      }
+    } catch (err) {
+      onFail(err);
+    }
+  });
+}
+
 export async function loadAudioFile(
   ctx: AudioContext,
   id: CornerId,
   file: File
 ): Promise<CornerSample> {
+  if (file.size === 0) {
+    throw new Error('File is empty or still downloading from iCloud.');
+  }
   const arrayBuffer = await file.arrayBuffer();
-  const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
+  const decoded = await decodeAudioBuffer(ctx, arrayBuffer);
   const processed = trimAndNormalize(ctx, decoded);
   const baseName = file.name.replace(/\.[^/.]+$/, '').slice(0, 24) || `Sample ${id}`;
 
