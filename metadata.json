@@ -1,0 +1,6 @@
+{
+  "name": "sound_morph",
+  "description": "Multitouch XY sample morpher: load or record four samples into the corners of an XY pad, then play them with several fingers and morph between them with Blend, Filter, Grain, or Tape algorithms.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": []
+}
